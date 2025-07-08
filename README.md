@@ -61,14 +61,15 @@ Untuk menjalankan dashboard ini di komputer lokal Anda, ikuti langkah-langkah be
 
 2.  **Siapkan Struktur Direktori**
 
+      - Download file yang terintegrasi `Dashboard Monitor Iklim Indonesia.R` atau file terpisah `app.R`dan lain-lain.
+      - Download juga data excel & geojson.
       - Buat folder bernama `data` di dalam direktori utama proyek.
       - Letakkan file `data_suhu_lengkap.xlsx` dan `indonesia-prov.geojson` di dalam folder `data/` tersebut.
 
-3.  **Hapus Path Absolut (PENTING\!)**
+3.  **Sesuaikan file**
 
-      - Buka file `app.R` dan `ui.R`.
-      - Sesuaikan baris `setwd("C:/Tugas Zidan/Sem 4/Komstat/Projek/deploy")` di `app.R`.
-      - Lakukan hal yang sama untuk `geojson_path` di `global.R`, ubah menjadi path relatif: `geojson_path <- "data/indonesia-prov.geojson"`.
+      - Sesuaikan direktori `setwd("C:/Tugas Zidan/Sem 4/Komstat/Projek/deploy")` di `app.R`.
+      - Lakukan hal yang sama untuk data excel dan geojson_path.
 
 4.  **Instal Paket R yang Dibutuhkan**
     Buka R atau RStudio dan jalankan skrip berikut di konsol untuk menginstal semua dependensi:
@@ -82,7 +83,7 @@ Untuk menjalankan dashboard ini di komputer lokal Anda, ikuti langkah-langkah be
 5.  **Jalankan Aplikasi**
 
       - Pastikan direktori kerja R Anda adalah direktori utama proyek.
-      - Jalankan aplikasi dengan membuka file `app.R` dan mengklik "Run App" di RStudio, atau jalankan perintah berikut di konsol R:
+      - Jalankan aplikasi dengan membuka file `app.R` atau `Dashboard Monitor Iklim Indonesia.R` dan mengklik "Run App" di RStudio, atau jalankan perintah berikut di konsol R:
 
     <!-- end list -->
 
