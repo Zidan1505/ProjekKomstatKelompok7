@@ -1,11 +1,10 @@
 # =============================================
 # INDONESIA CLIMATE PULSE DASHBOARD - UI
-# User Interface Definition
 # =============================================
 ui <- fluidPage(
   theme = NULL,
   
-  # CSS and External Resources
+  # Sumber CSS
   tags$head(
     tags$link(rel = "stylesheet", href = "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"),
     tags$link(rel = "stylesheet", href = "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"),
@@ -13,8 +12,8 @@ ui <- fluidPage(
   ),
   
   useShinyjs(),
-  
-  # Header Navigation
+
+  # Navbar
   div(class = "navbar",
       div(class = "navbar-container",
           a(href = "#", class = "logo",
@@ -56,7 +55,7 @@ ui <- fluidPage(
       )
   ),
   
-  # Main Container
+  # Konten Utama
   div(class = "container",
       
       # Data Source Info
@@ -72,7 +71,6 @@ ui <- fluidPage(
           # BERANDA TAB
           div(id = "beranda_content",
               
-              # Hero Section
               div(class = "hero",
                   div(class = "hero-content",
                       h1(class = "hero-title", "Monitor Iklim Indonesia"),
@@ -90,7 +88,6 @@ ui <- fluidPage(
                   )
               ),
               
-              # Stats Cards
               div(class = "stats-container",
                   div(class = "stat-card stat-card-red",
                       div(class = "stat-value", textOutput("suhu_tertinggi")),
@@ -114,7 +111,6 @@ ui <- fluidPage(
                   )
               ),
               
-              # Featured Insights
               h2(class = "section-title", "Analisis Suhu"),
               div(class = "insights-container",
                   div(class = "insight-card",
@@ -152,7 +148,6 @@ ui <- fluidPage(
                   )
               ),
               
-              # Additional Analysis
               div(class = "additional-content",
                   h2(class = "section-title", "Analisis Distribusi Suhu"),
                   div(class = "chart-container",
@@ -195,7 +190,6 @@ ui <- fluidPage(
                   p(class = "tab-description", "Peta interaktif menunjukkan variasi suhu antar provinsi")
               ),
               
-              # Control Panel
               div(class = "control-panel",
                   div(class = "control-row",
                       div(class = "form-group",
@@ -220,7 +214,6 @@ ui <- fluidPage(
                   leafletOutput("peta_iklim", height = "600px")
               ),
               
-              # Data Table
               div(style = "margin-top: 30px;",
                   h2(class = "section-title", "Data Provinsi"),
                   div(class = "chart-container",
