@@ -1,9 +1,8 @@
 # =============================================
-# INDONESIA CLIMATE PULSE DASHBOARD - INTEGRATED
+# DASHBOARD MONITOR IKLIM INDONESIA
 # Dashboard Analisis Suhu Real-time Indonesia
 # =============================================
 
-# Load required libraries
 library(shiny)
 library(leaflet)
 library(plotly)
@@ -22,15 +21,12 @@ library(shinyjs)
 # DATA PROCESSING
 # =============================================
 
-# Load and process data
 setwd("C:/Tugas Zidan/Sem 4/Komstat/Projek/deploy")
 temp_data <- read_excel("data_suhu_lengkap.xlsx")
 
-# Debug: Check data structure
 cat("Data columns:", names(temp_data), "\n")
 cat("Data rows:", nrow(temp_data), "\n")
 
-# Ensure date column exists and is properly formatted
 if("date" %in% names(temp_data)) {
   temp_data$date <- as.Date(temp_data$date)
 } else {
@@ -40,7 +36,6 @@ if("date" %in% names(temp_data)) {
 temp_data$year <- year(temp_data$date)
 temp_data$month <- month(temp_data$date)
 
-# Process climate data with error handling
 provinces_climate_data <- temp_data %>%
   group_by(province_name, province_id) %>%
   summarise(
@@ -67,11 +62,9 @@ provinces_climate_data <- temp_data %>%
     )
   )
 
-# Debug: Check processed data
 cat("Provinces climate data rows:", nrow(provinces_climate_data), "\n")
 cat("Provinces climate data columns:", names(provinces_climate_data), "\n")
 
-# Monthly temperature trends
 monthly_temp_trend <- temp_data %>%
   mutate(
     year_month = floor_date(date, "month"),
@@ -90,7 +83,6 @@ monthly_temp_trend <- temp_data %>%
     anomaly = round(temperature - baseline_temp, 2)
   )
 
-# National temperature trend
 national_temp_trend <- monthly_temp_trend %>%
   group_by(year) %>%
   summarise(
@@ -102,7 +94,6 @@ national_temp_trend <- monthly_temp_trend %>%
     anomaly = round(temperature - baseline_temp, 2)
   )
 
-# Monthly seasonal data - FIXED: Proper ordering from January to December
 monthly_data <- temp_data %>%
   group_by(month) %>%
   summarise(
@@ -117,7 +108,6 @@ monthly_data <- temp_data %>%
     seasonal_anomaly = round(avg_temp - mean(avg_temp, na.rm = TRUE), 2)
   )
 
-# Load GeoJSON Indonesia Provinces - IMPROVED
 geojson_path <- "indonesia-prov.geojson"
 indonesia_provinces <- NULL
 
@@ -125,12 +115,10 @@ cat("Mencoba memuat GeoJSON dari:", geojson_path, "\n")
 
 if(file.exists(geojson_path)) {
   tryCatch({
-    # Read GeoJSON file
     indonesia_provinces <- geojson_sf(geojson_path)
     cat("GeoJSON berhasil dimuat. Kolom:", names(indonesia_provinces), "\n")
     cat("Jumlah provinsi di GeoJSON:", nrow(indonesia_provinces), "\n")
     
-    # Clean province names for matching
     if(!is.null(indonesia_provinces)) {
       # Try different possible column names for province names
       prov_name_cols <- c("NAME_1", "PROVINSI", "Province", "province", "name", "NAME", "Propinsi", "PROPINSI")
@@ -145,26 +133,21 @@ if(file.exists(geojson_path)) {
       }
       
       if(!is.null(prov_name_col)) {
-        # Clean and standardize province names
         indonesia_provinces$province_clean <- toupper(trimws(gsub("[^A-Za-z0-9 ]", "", indonesia_provinces[[prov_name_col]])))
         provinces_climate_data$province_clean <- toupper(trimws(gsub("[^A-Za-z0-9 ]", "", provinces_climate_data$province_name)))
         
         cat("Sample GeoJSON province names:", head(indonesia_provinces$province_clean, 3), "\n")
         cat("Sample climate data province names:", head(provinces_climate_data$province_clean, 3), "\n")
         
-        # Merge climate data with geographic data
         indonesia_provinces <- indonesia_provinces %>%
           left_join(provinces_climate_data, by = c("province_clean" = "province_clean"))
         
         cat("Setelah merge - kolom tersedia:", names(indonesia_provinces), "\n")
         cat("Jumlah provinsi dengan data iklim:", sum(!is.na(indonesia_provinces$current_temp)), "\n")
         
-        # If merge failed, try alternative matching
         if(sum(!is.na(indonesia_provinces$current_temp)) == 0) {
           cat("Merge gagal, mencoba metode alternatif...\n")
           
-          # Try fuzzy matching or manual mapping
-          # Create a simple mapping for common province names
           province_mapping <- data.frame(
             geojson_name = c("DKI JAKARTA", "JAWA BARAT", "JAWA TENGAH", "JAWA TIMUR", 
                              "SUMATERA UTARA", "SUMATERA BARAT", "KALIMANTAN TIMUR", "SULAWESI SELATAN"),
@@ -173,7 +156,6 @@ if(file.exists(geojson_path)) {
             stringsAsFactors = FALSE
           )
           
-          # Manual merge for key provinces
           for(i in 1:nrow(province_mapping)) {
             geojson_match <- which(grepl(province_mapping$geojson_name[i], indonesia_provinces$province_clean, ignore.case = TRUE))
             climate_match <- which(grepl(province_mapping$climate_name[i], provinces_climate_data$province_clean, ignore.case = TRUE))
@@ -201,11 +183,9 @@ if(file.exists(geojson_path)) {
   cat("File yang ada di direktori:", list.files(pattern = "*.geojson"), "\n")
 }
 
-# Create fallback data if GeoJSON loading failed
 if(is.null(indonesia_provinces) || sum(!is.na(indonesia_provinces$current_temp)) == 0) {
   cat("Membuat data fallback untuk peta...\n")
   
-  # Create simple point data for major cities
   fallback_data <- data.frame(
     province_name = provinces_climate_data$province_name,
     current_temp = provinces_climate_data$current_temp,
@@ -213,13 +193,12 @@ if(is.null(indonesia_provinces) || sum(!is.na(indonesia_provinces$current_temp))
     temp_anomaly = provinces_climate_data$temp_anomaly,
     climate_risk_score = provinces_climate_data$climate_risk_score,
     region = provinces_climate_data$region,
-    # Approximate coordinates for major Indonesian provinces
+
     lat = c(-6.2, -6.9, -7.8, -7.5, 3.6, -0.9, 0.5, -5.1)[1:nrow(provinces_climate_data)],
     lng = c(106.8, 107.6, 110.4, 112.7, 98.7, 100.4, 117.1, 119.4)[1:nrow(provinces_climate_data)],
     stringsAsFactors = FALSE
   )
   
-  # Fill missing coordinates with random values around Indonesia
   missing_coords <- is.na(fallback_data$lat) | is.na(fallback_data$lng)
   if(any(missing_coords)) {
     fallback_data$lat[missing_coords] <- runif(sum(missing_coords), -10, 5)
@@ -851,7 +830,6 @@ ui <- fluidPage(
           # BERANDA TAB
           div(id = "beranda_content",
               
-              # Hero Section
               div(class = "hero",
                   div(class = "hero-content",
                       h1(class = "hero-title", "Selamat Datang"),
@@ -869,7 +847,6 @@ ui <- fluidPage(
                   )
               ),
               
-              # Stats Cards
               div(class = "stats-container",
                   div(class = "stat-card stat-card-red",
                       div(class = "stat-value", textOutput("suhu_tertinggi")),
@@ -893,7 +870,6 @@ ui <- fluidPage(
                   )
               ),
               
-              # Featured Insights
               h2(class = "section-title", "Analisis Suhu"),
               div(class = "insights-container",
                   div(class = "insight-card",
@@ -931,7 +907,6 @@ ui <- fluidPage(
                   )
               ),
               
-              # Additional Analysis
               div(class = "additional-content",
                   h2(class = "section-title", "Analisis Distribusi Suhu"),
                   div(class = "chart-container",
@@ -974,7 +949,6 @@ ui <- fluidPage(
                   p(class = "tab-description", "Peta interaktif berisi variasi suhu antar provinsi Indonesia. Visualisasikan sebaran panas di seluruh Indonesia secara instan.")
               ),
               
-              # Control Panel
               div(class = "control-panel",
                   div(class = "control-row",
                       div(class = "form-group",
@@ -999,13 +973,6 @@ ui <- fluidPage(
                   leafletOutput("peta_iklim", height = "600px")
               ),
               
-              # Data Table
-              div(style = "margin-top: 30px;",
-                  h2(class = "section-title", "Data Provinsi"),
-                  div(class = "chart-container",
-                      DT::dataTableOutput("tabel_provinsi")
-                  )
-              )
           ),
           
           # PREDIKSI TAB
@@ -1106,10 +1073,8 @@ ui <- fluidPage(
 
 server <- function(input, output, session) {
   
-  # Track active tab
   active_tab <- reactiveVal("beranda")
   
-  # Navigation handlers
   observeEvent(input$nav_beranda, {
     active_tab("beranda")
     shinyjs::hide("tren_content")
@@ -1180,7 +1145,6 @@ server <- function(input, output, session) {
           "Rentang tanggal:", min(temp_data$date), "hingga", max(temp_data$date))
   })
   
-  # Stats outputs with error handling
   output$suhu_tertinggi <- renderText({
     if(nrow(provinces_climate_data) > 0 && "current_temp" %in% names(provinces_climate_data)) {
       max_temp <- max(provinces_climate_data$current_temp, na.rm = TRUE)
@@ -1220,7 +1184,6 @@ server <- function(input, output, session) {
         addProviderTiles(providers$CartoDB.Positron) %>%
         addControl("Peta Pratinjau Indonesia", position = "topright")
     } else {
-      # Simple preview with current temperature
       if("current_temp" %in% names(indonesia_provinces)) {
         colors <- colorNumeric("Reds", indonesia_provinces$current_temp, na.color = "#808080")
         
@@ -1246,7 +1209,7 @@ server <- function(input, output, session) {
     }
   })
   
-  # Charts
+  # Grafik
   output$grafik_tren_nasional <- renderPlotly({
     if(nrow(national_temp_trend) == 0) {
       return(plotly_empty() %>% layout(title = "Data tren tidak tersedia"))
@@ -1298,13 +1261,12 @@ server <- function(input, output, session) {
       config(displayModeBar = FALSE)
   })
   
-  # FIXED: Seasonal pattern chart with proper ordering
+  # Grafik musiman
   output$grafik_pola_musiman <- renderPlotly({
     if(nrow(monthly_data) == 0) {
       return(plotly_empty() %>% layout(title = "Data musiman tidak tersedia"))
     }
     
-    # Ensure proper ordering from January to December
     monthly_data_ordered <- monthly_data %>%
       arrange(month) %>%
       mutate(month_name = factor(month_name, levels = c("Jan", "Feb", "Mar", "Apr", "Mei", "Jun", 
@@ -1352,7 +1314,7 @@ server <- function(input, output, session) {
       config(displayModeBar = FALSE)
   })
   
-  # Detailed trends chart
+  # Grafik Tren
   output$grafik_tren_detail <- renderPlotly({
     if(nrow(national_temp_trend) < 2) {
       return(plotly_empty() %>% layout(title = "Data tidak cukup untuk analisis tren"))
@@ -1382,7 +1344,7 @@ server <- function(input, output, session) {
       config(displayModeBar = FALSE)
   })
   
-  # Trend statistics
+  # Trend statistik
   output$statistik_tren <- renderUI({
     if(nrow(national_temp_trend) < 2) {
       return(p("Data tren tidak tersedia"))
@@ -1415,7 +1377,7 @@ server <- function(input, output, session) {
     )
   })
   
-  # Temperature extremes
+  # Temperatur extremes
   output$ekstrem_suhu <- renderUI({
     if(nrow(provinces_climate_data) == 0 || !"current_temp" %in% names(provinces_climate_data)) {
       return(p("Data ekstrem tidak tersedia"))
@@ -1452,7 +1414,7 @@ server <- function(input, output, session) {
     )
   })
   
-  # Climate map - IMPROVED
+  # Climate map
   output$peta_iklim <- renderLeaflet({
     
     cat("Rendering peta iklim...\n")
@@ -1460,13 +1422,11 @@ server <- function(input, output, session) {
     if(is.null(indonesia_provinces)) {
       cat("Menggunakan fallback data untuk peta\n")
       
-      # Use fallback point data
       if(exists("fallback_data") && nrow(fallback_data) > 0) {
         
         param <- input$parameter_peta
         if(is.null(param)) param <- "current_temp"
         
-        # Get values based on parameter
         if(param == "current_temp") {
           values <- fallback_data$current_temp
           colors <- colorNumeric("Reds", values, na.color = "#808080")
@@ -1485,7 +1445,6 @@ server <- function(input, output, session) {
           legend_title <- "Skor Risiko Iklim"
         }
         
-        # Create map with circle markers
         leaflet(fallback_data) %>%
           setView(lng = 118, lat = -2, zoom = 5) %>%
           addProviderTiles(providers$CartoDB.Positron) %>%
@@ -1514,7 +1473,6 @@ server <- function(input, output, session) {
           addControl("Peta Iklim Indonesia (Mode Titik)", position = "topright")
         
       } else {
-        # Complete fallback
         leaflet() %>%
           setView(lng = 118, lat = -2, zoom = 5) %>%
           addProviderTiles(providers$CartoDB.Positron) %>%
@@ -1522,14 +1480,11 @@ server <- function(input, output, session) {
       }
       
     } else {
-      # Use polygon data
       cat("Menggunakan data polygon untuk peta\n")
       
-      # Get selected parameter
       param <- input$parameter_peta
       if(is.null(param)) param <- "current_temp"
       
-      # Check if parameter exists in data
       if(!param %in% names(indonesia_provinces)) {
         cat("Parameter", param, "tidak ditemukan. Kolom tersedia:", names(indonesia_provinces), "\n")
         
@@ -1539,7 +1494,6 @@ server <- function(input, output, session) {
           addControl(paste("Parameter", param, "tidak tersedia"), position = "topright")
       } else {
         
-        # Create color palette based on selected parameter
         if(param == "current_temp") {
           values <- indonesia_provinces$current_temp
           colors <- colorNumeric("Reds", values, na.color = "#808080")
@@ -1558,7 +1512,6 @@ server <- function(input, output, session) {
           legend_title <- "Skor Risiko Iklim"
         }
         
-        # Create labels for popup
         labels <- sprintf(
           "<strong>%s</strong><br/>
         Suhu Saat Ini: %s°C<br/>
@@ -1574,7 +1527,6 @@ server <- function(input, output, session) {
           indonesia_provinces$region %||% "N/A"
         ) %>% lapply(htmltools::HTML)
         
-        # Create the map
         leaflet(indonesia_provinces) %>%
           setView(lng = 118, lat = -2, zoom = 5) %>%
           addProviderTiles(providers$CartoDB.Positron) %>%
@@ -1611,14 +1563,12 @@ server <- function(input, output, session) {
     }
   })
   
-  # Update map when parameter changes - IMPROVED
   observeEvent(input$perbarui_peta, {
     output$peta_iklim <- renderLeaflet({
       
       cat("Memperbarui peta dengan parameter:", input$parameter_peta, "\n")
       
       if(is.null(indonesia_provinces)) {
-        # Use fallback data
         if(exists("fallback_data") && nrow(fallback_data) > 0) {
           
           param <- input$parameter_peta
@@ -1674,7 +1624,6 @@ server <- function(input, output, session) {
             addControl("Data tidak tersedia", position = "topright")
         }
       } else {
-        # Use polygon data (same as above)
         param <- input$parameter_peta
         if(is.null(param)) param <- "current_temp"
         
@@ -1750,7 +1699,7 @@ server <- function(input, output, session) {
     })
   })
   
-  # Province data table
+  # Data Tabel Province
   output$tabel_provinsi <- DT::renderDataTable({
     if(nrow(provinces_climate_data) == 0) {
       return(DT::datatable(data.frame(Message = "Data tidak tersedia")))
@@ -1804,7 +1753,6 @@ server <- function(input, output, session) {
     
     forecast_months <- as.numeric(input$bulan_prediksi)
     
-    # Create time series
     start_year <- min(monthly_temp_trend$year, na.rm = TRUE)
     start_month <- min(monthly_temp_trend$month[monthly_temp_trend$year == start_year], na.rm = TRUE)
     
@@ -1812,11 +1760,9 @@ server <- function(input, output, session) {
                   start = c(start_year, start_month),
                   frequency = 12)
     
-    # Fit ARIMA and forecast
     arima_model <- auto.arima(ts_data)
     forecast_result <- forecast(arima_model, h = forecast_months, level = 95)
     
-    # Create dates
     historical_dates <- monthly_temp_trend$year_month
     last_date <- max(historical_dates, na.rm = TRUE)
     forecast_dates <- seq(from = last_date %m+% months(1), by = "1 month", length.out = forecast_months)
@@ -1851,7 +1797,6 @@ server <- function(input, output, session) {
       config(displayModeBar = FALSE)
   })
   
-  # Model performance
   output$performa_model <- renderUI({
     req(input$perbarui_prediksi)
     
@@ -1891,7 +1836,6 @@ server <- function(input, output, session) {
     )
   })
   
-  # Forecast summary
   output$ringkasan_prediksi <- renderUI({
     req(input$perbarui_prediksi)
     
@@ -1943,7 +1887,6 @@ server <- function(input, output, session) {
     )
   })
   
-  # Complete data table
   output$tabel_data_lengkap <- DT::renderDataTable({
     if(nrow(provinces_climate_data) == 0) {
       return(DT::datatable(data.frame(Message = "Data tidak tersedia")))
@@ -1991,14 +1934,12 @@ server <- function(input, output, session) {
       )
   })
   
-  # Update map when parameter changes - IMPROVED
   observeEvent(input$perbarui_peta, {
     output$peta_iklim <- renderLeaflet({
       
       cat("Memperbarui peta dengan parameter:", input$parameter_peta, "\n")
       
       if(is.null(indonesia_provinces)) {
-        # Use fallback data
         if(exists("fallback_data") && nrow(fallback_data) > 0) {
           
           param <- input$parameter_peta
@@ -2054,7 +1995,6 @@ server <- function(input, output, session) {
             addControl("Data tidak tersedia", position = "topright")
         }
       } else {
-        # Use polygon data (same as above)
         param <- input$parameter_peta
         if(is.null(param)) param <- "current_temp"
         
@@ -2130,7 +2070,7 @@ server <- function(input, output, session) {
     })
   })
   
-  # Province data table
+  # Data Tabel Provinsi
   output$tabel_provinsi <- DT::renderDataTable({
     if(nrow(provinces_climate_data) == 0) {
       return(DT::datatable(data.frame(Message = "Data tidak tersedia")))
@@ -2184,7 +2124,6 @@ server <- function(input, output, session) {
     
     forecast_months <- as.numeric(input$bulan_prediksi)
     
-    # Create time series
     start_year <- min(monthly_temp_trend$year, na.rm = TRUE)
     start_month <- min(monthly_temp_trend$month[monthly_temp_trend$year == start_year], na.rm = TRUE)
     
@@ -2192,11 +2131,378 @@ server <- function(input, output, session) {
                   start = c(start_year, start_month),
                   frequency = 12)
     
-    # Fit ARIMA and forecast
     arima_model <- auto.arima(ts_data)
     forecast_result <- forecast(arima_model, h = forecast_months, level = 95)
     
-    # Create dates
+    historical_dates <- monthly_temp_trend$year_month
+    last_date <- max(historical_dates, na.rm = TRUE)
+    forecast_dates <- seq(from = last_date %m+% months(1), by = "1 month", length.out = forecast_months)
+    
+    plot_ly() %>%
+      add_trace(
+        x = historical_dates,
+        y = as.numeric(ts_data),
+        type = 'scatter',
+        mode = 'lines',
+        line = list(color = '#e63946', width = 2),
+        name = 'Data Historis',
+        hovertemplate = 'Tanggal: %{x}<br>Suhu: %{y:.2f}°C<extra></extra>'
+      ) %>%
+      add_trace(
+        x = forecast_dates,
+        y = as.numeric(forecast_result$mean),
+        type = 'scatter',
+        mode = 'lines',
+        line = list(color = '#2a9d8f', width = 3),
+        name = 'Prediksi ARIMA',
+        hovertemplate = 'Tanggal: %{x}<br>Prediksi: %{y:.2f}°C<extra></extra>'
+      ) %>%
+      layout(
+        title = paste("Prediksi Suhu Bulanan ARIMA -", forecast_months, "Bulan"),
+        xaxis = list(title = "Tanggal"),
+        yaxis = list(title = "Suhu (°C)"),
+        plot_bgcolor = 'rgba(0,0,0,0)',
+        paper_bgcolor = 'rgba(0,0,0,0)'
+      ) %>%
+      config(displayModeBar = FALSE)
+  })
+  
+  output$performa_model <- renderUI({
+    req(input$perbarui_prediksi)
+    
+    if(nrow(monthly_temp_trend) <= 12) {
+      return(p("Data bulanan tidak cukup untuk perhitungan performa model"))
+    }
+    
+    start_year <- min(monthly_temp_trend$year, na.rm = TRUE)
+    start_month <- min(monthly_temp_trend$month[monthly_temp_trend$year == start_year], na.rm = TRUE)
+    
+    ts_data <- ts(monthly_temp_trend$temperature, 
+                  start = c(start_year, start_month), 
+                  frequency = 12)
+    arima_model <- auto.arima(ts_data)
+    
+    residuals_data <- residuals(arima_model)
+    mae <- round(mean(abs(residuals_data), na.rm = TRUE), 4)
+    rmse <- round(sqrt(mean(residuals_data^2, na.rm = TRUE)), 4)
+    
+    tagList(
+      div(style = "margin-bottom: 15px;",
+          tags$strong("Tipe Model: "), 
+          paste0("ARIMA(", paste(arimaorder(arima_model), collapse = ","), ")")
+      ),
+      div(style = "margin-bottom: 15px;",
+          tags$strong("Frekuensi Data: "), "Bulanan"
+      ),
+      div(style = "margin-bottom: 15px;",
+          tags$strong("MAE: "), paste0(mae, "°C")
+      ),
+      div(style = "margin-bottom: 15px;",
+          tags$strong("RMSE: "), paste0(rmse, "°C")
+      ),
+      div(style = "margin-bottom: 15px;",
+          tags$strong("AIC: "), round(AIC(arima_model), 2)
+      )
+    )
+  })
+  
+  output$ringkasan_prediksi <- renderUI({
+    req(input$perbarui_prediksi)
+    
+    if(nrow(monthly_temp_trend) <= 12) {
+      return(p("Data bulanan tidak cukup untuk ringkasan prediksi"))
+    }
+    
+    forecast_months <- as.numeric(input$bulan_prediksi)
+    
+    start_year <- min(monthly_temp_trend$year, na.rm = TRUE)
+    start_month <- min(monthly_temp_trend$month[monthly_temp_trend$year == start_year], na.rm = TRUE)
+    
+    ts_data <- ts(monthly_temp_trend$temperature,
+                  start = c(start_year, start_month),
+                  frequency = 12)
+    
+    arima_model <- auto.arima(ts_data)
+    forecast_result <- forecast(arima_model, h = forecast_months, level = 95)
+    
+    final_forecast <- round(as.numeric(forecast_result$mean[forecast_months]), 2)
+    current_temp <- round(tail(monthly_temp_trend$temperature, 1), 2)
+    temp_change <- round(final_forecast - current_temp, 2)
+    
+    last_date <- max(monthly_temp_trend$year_month, na.rm = TRUE)
+    forecast_end_date <- last_date %m+% months(forecast_months)
+    
+    tagList(
+      div(style = "margin-bottom: 15px;",
+          tags$strong("Horizon Prediksi: "), paste(forecast_months, "bulan")
+      ),
+      div(style = "margin-bottom: 15px;",
+          tags$strong("Periode Prediksi: "), 
+          paste("Hingga", format(forecast_end_date, "%B %Y"))
+      ),
+      div(style = "margin-bottom: 15px;",
+          tags$strong("Suhu Saat Ini: "), paste0(current_temp, "°C")
+      ),
+      div(style = "margin-bottom: 15px;",
+          tags$strong("Suhu Proyeksi: "), paste0(final_forecast, "°C")
+      ),
+      div(style = "margin-bottom: 15px;",
+          tags$strong("Perubahan yang Diharapkan: "), 
+          paste0(ifelse(temp_change >= 0, "+", ""), temp_change, "°C")
+      ),
+      div(style = "margin-bottom: 15px;",
+          tags$strong("Laju Perubahan Bulanan: "), 
+          paste0(round(temp_change / forecast_months, 4), "°C/bulan")
+      )
+    )
+  })
+  
+  output$tabel_data_lengkap <- DT::renderDataTable({
+    if(nrow(provinces_climate_data) == 0) {
+      return(DT::datatable(data.frame(Message = "Data tidak tersedia")))
+    }
+    
+    display_data <- provinces_climate_data %>%
+      select(
+        Provinsi = province_name,
+        `ID Provinsi` = province_id,
+        Region = region,
+        `Suhu Saat Ini (°C)` = current_temp,
+        `Rata-rata Historis (°C)` = historical_avg,
+        `Anomali Suhu (°C)` = temp_anomaly,
+        `Skor Risiko Iklim` = climate_risk_score,
+        `Tahun Data` = data_years,
+        `Tahun Pertama` = first_year,
+        `Tahun Terakhir` = last_year
+      )
+    
+    DT::datatable(
+      display_data,
+      options = list(
+        pageLength = 15,
+        scrollX = TRUE,
+        language = list(
+          search = "Cari:",
+          lengthMenu = "Tampilkan _MENU_ entri",
+          info = "Menampilkan _START_ hingga _END_ dari _TOTAL_ entri",
+          paginate = list(
+            first = "Pertama",
+            last = "Terakhir",
+            `next` = "Selanjutnya",
+            previous = "Sebelumnya"
+          )
+        )
+      ),
+      rownames = FALSE,
+      class = 'cell-border stripe hover'
+    ) %>%
+      DT::formatRound(columns = c(4:7), digits = 2) %>%
+      DT::formatStyle(
+        columns = c(4:7),
+        backgroundColor = 'rgba(230, 57, 70, 0.05)',
+        fontWeight = 'bold'
+      )
+  })
+
+  observeEvent(input$perbarui_peta, {
+    output$peta_iklim <- renderLeaflet({
+      
+      cat("Memperbarui peta dengan parameter:", input$parameter_peta, "\n")
+      
+      if(is.null(indonesia_provinces)) {
+        if(exists("fallback_data") && nrow(fallback_data) > 0) {
+          
+          param <- input$parameter_peta
+          if(is.null(param)) param <- "current_temp"
+          
+          if(param == "current_temp") {
+            values <- fallback_data$current_temp
+            colors <- colorNumeric("Reds", values, na.color = "#808080")
+            legend_title <- "Suhu Saat Ini (°C)"
+          } else if(param == "historical_avg") {
+            values <- fallback_data$historical_avg
+            colors <- colorNumeric("Blues", values, na.color = "#808080")
+            legend_title <- "Rata-rata Historis (°C)"
+          } else if(param == "temp_anomaly") {
+            values <- fallback_data$temp_anomaly
+            colors <- colorNumeric("RdYlBu", values, na.color = "#808080", reverse = TRUE)
+            legend_title <- "Anomali Suhu (°C)"
+          } else {
+            values <- fallback_data$climate_risk_score
+            colors <- colorNumeric("OrRd", values, na.color = "#808080")
+            legend_title <- "Skor Risiko Iklim"
+          }
+          
+          leaflet(fallback_data) %>%
+            setView(lng = 118, lat = -2, zoom = 5) %>%
+            addProviderTiles(providers$CartoDB.Positron) %>%
+            addCircleMarkers(
+              lng = ~lng, lat = ~lat,
+              radius = ~sqrt(values) * 3,
+              fillColor = ~colors(values),
+              color = "white",
+              weight = 2,
+              opacity = 1,
+              fillOpacity = 0.8,
+              popup = ~paste0("<b>", province_name, "</b><br/>", 
+                              "Parameter: ", legend_title, "<br/>",
+                              "Nilai: ", values, "<br/>",
+                              "Region: ", region)
+            ) %>%
+            addLegend(
+              pal = colors, 
+              values = ~values,
+              opacity = 0.7, 
+              title = legend_title,
+              position = "bottomright"
+            ) %>%
+            addControl("Peta Iklim Indonesia (Mode Titik) - Diperbarui", position = "topright")
+          
+        } else {
+          leaflet() %>%
+            setView(lng = 118, lat = -2, zoom = 5) %>%
+            addProviderTiles(providers$CartoDB.Positron) %>%
+            addControl("Data tidak tersedia", position = "topright")
+        }
+      } else {
+        param <- input$parameter_peta
+        if(is.null(param)) param <- "current_temp"
+        
+        if(!param %in% names(indonesia_provinces)) {
+          leaflet() %>%
+            setView(lng = 118, lat = -2, zoom = 5) %>%
+            addProviderTiles(providers$CartoDB.Positron) %>%
+            addControl(paste("Parameter", param, "tidak tersedia"), position = "topright")
+        } else {
+          
+          if(param == "current_temp") {
+            values <- indonesia_provinces$current_temp
+            colors <- colorNumeric("Reds", values, na.color = "#808080")
+            legend_title <- "Suhu Saat Ini (°C)"
+          } else if(param == "historical_avg") {
+            values <- indonesia_provinces$historical_avg
+            colors <- colorNumeric("Blues", values, na.color = "#808080")
+            legend_title <- "Rata-rata Historis (°C)"
+          } else if(param == "temp_anomaly") {
+            values <- indonesia_provinces$temp_anomaly
+            colors <- colorNumeric("RdYlBu", values, na.color = "#808080", reverse = TRUE)
+            legend_title <- "Anomali Suhu (°C)"
+          } else {
+            values <- indonesia_provinces$climate_risk_score
+            colors <- colorNumeric("OrRd", values, na.color = "#808080")
+            legend_title <- "Skor Risiko Iklim"
+          }
+          
+          labels <- sprintf(
+            "<strong>%s</strong><br/>
+          %s: %s<br/>
+          Region: %s",
+            indonesia_provinces$province_name %||% "N/A",
+            legend_title,
+            values %||% "N/A",
+            indonesia_provinces$region %||% "N/A"
+          ) %>% lapply(htmltools::HTML)
+          
+          leaflet(indonesia_provinces) %>%
+            setView(lng = 118, lat = -2, zoom = 5) %>%
+            addProviderTiles(providers$CartoDB.Positron) %>%
+            addPolygons(
+              fillColor = ~colors(values),
+              weight = 2,
+              opacity = 1,
+              color = "white",
+              dashArray = "3",
+              fillOpacity = 0.7,
+              highlight = highlightOptions(
+                weight = 5,
+                color = "#666",
+                dashArray = "",
+                fillOpacity = 0.7,
+                bringToFront = TRUE
+              ),
+              label = labels,
+              labelOptions = labelOptions(
+                style = list("font-weight" = "normal", padding = "3px 8px"),
+                textsize = "15px",
+                direction = "auto"
+              )
+            ) %>%
+            addLegend(
+              pal = colors, 
+              values = ~values,
+              opacity = 0.7, 
+              title = legend_title,
+              position = "bottomright"
+            ) %>%
+            addControl("Peta Iklim Indonesia - Diperbarui", position = "topright")
+        }
+      }
+    })
+  })
+  
+  output$tabel_provinsi <- DT::renderDataTable({
+    if(nrow(provinces_climate_data) == 0) {
+      return(DT::datatable(data.frame(Message = "Data tidak tersedia")))
+    }
+    
+    display_data <- provinces_climate_data %>%
+      select(
+        Provinsi = province_name,
+        Region = region,
+        `Suhu Saat Ini` = current_temp,
+        `Rata-rata Historis` = historical_avg,
+        `Anomali` = temp_anomaly,
+        `Skor Risiko` = climate_risk_score
+      )
+    
+    DT::datatable(
+      display_data,
+      options = list(
+        pageLength = 10,
+        scrollX = TRUE,
+        language = list(
+          search = "Cari:",
+          lengthMenu = "Tampilkan _MENU_ entri",
+          info = "Menampilkan _START_ hingga _END_ dari _TOTAL_ entri",
+          paginate = list(
+            first = "Pertama",
+            last = "Terakhir",
+            `next` = "Selanjutnya",
+            previous = "Sebelumnya"
+          )
+        )
+      ),
+      rownames = FALSE,
+      class = 'cell-border stripe hover'
+    ) %>%
+      DT::formatRound(columns = c(3:6), digits = 1) %>%
+      DT::formatStyle(
+        columns = c(3:6),
+        backgroundColor = 'rgba(230, 57, 70, 0.05)',
+        fontWeight = 'bold'
+      )
+  })
+  
+  # ARIMA forecast
+  output$grafik_prediksi_arima <- renderPlotly({
+    req(input$perbarui_prediksi)
+    
+    if(nrow(monthly_temp_trend) <= 12) {
+      return(plotly_empty() %>% layout(title = "Data bulanan tidak cukup untuk prediksi ARIMA"))
+    }
+    
+    forecast_months <- as.numeric(input$bulan_prediksi)
+    
+    start_year <- min(monthly_temp_trend$year, na.rm = TRUE)
+    start_month <- min(monthly_temp_trend$month[monthly_temp_trend$year == start_year], na.rm = TRUE)
+    
+    ts_data <- ts(monthly_temp_trend$temperature,
+                  start = c(start_year, start_month),
+                  frequency = 12)
+    
+    arima_model <- auto.arima(ts_data)
+    forecast_result <- forecast(arima_model, h = forecast_months, level = 95)
+    
     historical_dates <- monthly_temp_trend$year_month
     last_date <- max(historical_dates, na.rm = TRUE)
     forecast_dates <- seq(from = last_date %m+% months(1), by = "1 month", length.out = forecast_months)
@@ -2323,7 +2629,6 @@ server <- function(input, output, session) {
     )
   })
   
-  # Complete data table
   output$tabel_data_lengkap <- DT::renderDataTable({
     if(nrow(provinces_climate_data) == 0) {
       return(DT::datatable(data.frame(Message = "Data tidak tersedia")))
@@ -2371,14 +2676,12 @@ server <- function(input, output, session) {
       )
   })
   
-  # Update map when parameter changes - IMPROVED
   observeEvent(input$perbarui_peta, {
     output$peta_iklim <- renderLeaflet({
       
       cat("Memperbarui peta dengan parameter:", input$parameter_peta, "\n")
       
       if(is.null(indonesia_provinces)) {
-        # Use fallback data
         if(exists("fallback_data") && nrow(fallback_data) > 0) {
           
           param <- input$parameter_peta
@@ -2434,7 +2737,6 @@ server <- function(input, output, session) {
             addControl("Data tidak tersedia", position = "topright")
         }
       } else {
-        # Use polygon data (same as above)
         param <- input$parameter_peta
         if(is.null(param)) param <- "current_temp"
         
@@ -2510,7 +2812,6 @@ server <- function(input, output, session) {
     })
   })
   
-  # Province data table
   output$tabel_provinsi <- DT::renderDataTable({
     if(nrow(provinces_climate_data) == 0) {
       return(DT::datatable(data.frame(Message = "Data tidak tersedia")))
@@ -2564,7 +2865,6 @@ server <- function(input, output, session) {
     
     forecast_months <- as.numeric(input$bulan_prediksi)
     
-    # Create time series
     start_year <- min(monthly_temp_trend$year, na.rm = TRUE)
     start_month <- min(monthly_temp_trend$month[monthly_temp_trend$year == start_year], na.rm = TRUE)
     
@@ -2576,7 +2876,6 @@ server <- function(input, output, session) {
     arima_model <- auto.arima(ts_data)
     forecast_result <- forecast(arima_model, h = forecast_months, level = 95)
     
-    # Create dates
     historical_dates <- monthly_temp_trend$year_month
     last_date <- max(historical_dates, na.rm = TRUE)
     forecast_dates <- seq(from = last_date %m+% months(1), by = "1 month", length.out = forecast_months)
@@ -2611,7 +2910,6 @@ server <- function(input, output, session) {
       config(displayModeBar = FALSE)
   })
   
-  # Model performance
   output$performa_model <- renderUI({
     req(input$perbarui_prediksi)
     
@@ -2651,7 +2949,6 @@ server <- function(input, output, session) {
     )
   })
   
-  # Forecast summary
   output$ringkasan_prediksi <- renderUI({
     req(input$perbarui_prediksi)
     
@@ -2703,387 +3000,6 @@ server <- function(input, output, session) {
     )
   })
   
-  # Complete data table
-  output$tabel_data_lengkap <- DT::renderDataTable({
-    if(nrow(provinces_climate_data) == 0) {
-      return(DT::datatable(data.frame(Message = "Data tidak tersedia")))
-    }
-    
-    display_data <- provinces_climate_data %>%
-      select(
-        Provinsi = province_name,
-        `ID Provinsi` = province_id,
-        Region = region,
-        `Suhu Saat Ini (°C)` = current_temp,
-        `Rata-rata Historis (°C)` = historical_avg,
-        `Anomali Suhu (°C)` = temp_anomaly,
-        `Skor Risiko Iklim` = climate_risk_score,
-        `Tahun Data` = data_years,
-        `Tahun Pertama` = first_year,
-        `Tahun Terakhir` = last_year
-      )
-    
-    DT::datatable(
-      display_data,
-      options = list(
-        pageLength = 15,
-        scrollX = TRUE,
-        language = list(
-          search = "Cari:",
-          lengthMenu = "Tampilkan _MENU_ entri",
-          info = "Menampilkan _START_ hingga _END_ dari _TOTAL_ entri",
-          paginate = list(
-            first = "Pertama",
-            last = "Terakhir",
-            `next` = "Selanjutnya",
-            previous = "Sebelumnya"
-          )
-        )
-      ),
-      rownames = FALSE,
-      class = 'cell-border stripe hover'
-    ) %>%
-      DT::formatRound(columns = c(4:7), digits = 2) %>%
-      DT::formatStyle(
-        columns = c(4:7),
-        backgroundColor = 'rgba(230, 57, 70, 0.05)',
-        fontWeight = 'bold'
-      )
-  })
-  
-  # Update map when parameter changes - IMPROVED
-  observeEvent(input$perbarui_peta, {
-    output$peta_iklim <- renderLeaflet({
-      
-      cat("Memperbarui peta dengan parameter:", input$parameter_peta, "\n")
-      
-      if(is.null(indonesia_provinces)) {
-        # Use fallback data
-        if(exists("fallback_data") && nrow(fallback_data) > 0) {
-          
-          param <- input$parameter_peta
-          if(is.null(param)) param <- "current_temp"
-          
-          if(param == "current_temp") {
-            values <- fallback_data$current_temp
-            colors <- colorNumeric("Reds", values, na.color = "#808080")
-            legend_title <- "Suhu Saat Ini (°C)"
-          } else if(param == "historical_avg") {
-            values <- fallback_data$historical_avg
-            colors <- colorNumeric("Blues", values, na.color = "#808080")
-            legend_title <- "Rata-rata Historis (°C)"
-          } else if(param == "temp_anomaly") {
-            values <- fallback_data$temp_anomaly
-            colors <- colorNumeric("RdYlBu", values, na.color = "#808080", reverse = TRUE)
-            legend_title <- "Anomali Suhu (°C)"
-          } else {
-            values <- fallback_data$climate_risk_score
-            colors <- colorNumeric("OrRd", values, na.color = "#808080")
-            legend_title <- "Skor Risiko Iklim"
-          }
-          
-          leaflet(fallback_data) %>%
-            setView(lng = 118, lat = -2, zoom = 5) %>%
-            addProviderTiles(providers$CartoDB.Positron) %>%
-            addCircleMarkers(
-              lng = ~lng, lat = ~lat,
-              radius = ~sqrt(values) * 3,
-              fillColor = ~colors(values),
-              color = "white",
-              weight = 2,
-              opacity = 1,
-              fillOpacity = 0.8,
-              popup = ~paste0("<b>", province_name, "</b><br/>", 
-                              "Parameter: ", legend_title, "<br/>",
-                              "Nilai: ", values, "<br/>",
-                              "Region: ", region)
-            ) %>%
-            addLegend(
-              pal = colors, 
-              values = ~values,
-              opacity = 0.7, 
-              title = legend_title,
-              position = "bottomright"
-            ) %>%
-            addControl("Peta Iklim Indonesia (Mode Titik) - Diperbarui", position = "topright")
-          
-        } else {
-          leaflet() %>%
-            setView(lng = 118, lat = -2, zoom = 5) %>%
-            addProviderTiles(providers$CartoDB.Positron) %>%
-            addControl("Data tidak tersedia", position = "topright")
-        }
-      } else {
-        # Use polygon data (same as above)
-        param <- input$parameter_peta
-        if(is.null(param)) param <- "current_temp"
-        
-        if(!param %in% names(indonesia_provinces)) {
-          leaflet() %>%
-            setView(lng = 118, lat = -2, zoom = 5) %>%
-            addProviderTiles(providers$CartoDB.Positron) %>%
-            addControl(paste("Parameter", param, "tidak tersedia"), position = "topright")
-        } else {
-          
-          if(param == "current_temp") {
-            values <- indonesia_provinces$current_temp
-            colors <- colorNumeric("Reds", values, na.color = "#808080")
-            legend_title <- "Suhu Saat Ini (°C)"
-          } else if(param == "historical_avg") {
-            values <- indonesia_provinces$historical_avg
-            colors <- colorNumeric("Blues", values, na.color = "#808080")
-            legend_title <- "Rata-rata Historis (°C)"
-          } else if(param == "temp_anomaly") {
-            values <- indonesia_provinces$temp_anomaly
-            colors <- colorNumeric("RdYlBu", values, na.color = "#808080", reverse = TRUE)
-            legend_title <- "Anomali Suhu (°C)"
-          } else {
-            values <- indonesia_provinces$climate_risk_score
-            colors <- colorNumeric("OrRd", values, na.color = "#808080")
-            legend_title <- "Skor Risiko Iklim"
-          }
-          
-          labels <- sprintf(
-            "<strong>%s</strong><br/>
-          %s: %s<br/>
-          Region: %s",
-            indonesia_provinces$province_name %||% "N/A",
-            legend_title,
-            values %||% "N/A",
-            indonesia_provinces$region %||% "N/A"
-          ) %>% lapply(htmltools::HTML)
-          
-          leaflet(indonesia_provinces) %>%
-            setView(lng = 118, lat = -2, zoom = 5) %>%
-            addProviderTiles(providers$CartoDB.Positron) %>%
-            addPolygons(
-              fillColor = ~colors(values),
-              weight = 2,
-              opacity = 1,
-              color = "white",
-              dashArray = "3",
-              fillOpacity = 0.7,
-              highlight = highlightOptions(
-                weight = 5,
-                color = "#666",
-                dashArray = "",
-                fillOpacity = 0.7,
-                bringToFront = TRUE
-              ),
-              label = labels,
-              labelOptions = labelOptions(
-                style = list("font-weight" = "normal", padding = "3px 8px"),
-                textsize = "15px",
-                direction = "auto"
-              )
-            ) %>%
-            addLegend(
-              pal = colors, 
-              values = ~values,
-              opacity = 0.7, 
-              title = legend_title,
-              position = "bottomright"
-            ) %>%
-            addControl("Peta Iklim Indonesia - Diperbarui", position = "topright")
-        }
-      }
-    })
-  })
-  
-  # Province data table
-  output$tabel_provinsi <- DT::renderDataTable({
-    if(nrow(provinces_climate_data) == 0) {
-      return(DT::datatable(data.frame(Message = "Data tidak tersedia")))
-    }
-    
-    display_data <- provinces_climate_data %>%
-      select(
-        Provinsi = province_name,
-        Region = region,
-        `Suhu Saat Ini` = current_temp,
-        `Rata-rata Historis` = historical_avg,
-        `Anomali` = temp_anomaly,
-        `Skor Risiko` = climate_risk_score
-      )
-    
-    DT::datatable(
-      display_data,
-      options = list(
-        pageLength = 10,
-        scrollX = TRUE,
-        language = list(
-          search = "Cari:",
-          lengthMenu = "Tampilkan _MENU_ entri",
-          info = "Menampilkan _START_ hingga _END_ dari _TOTAL_ entri",
-          paginate = list(
-            first = "Pertama",
-            last = "Terakhir",
-            `next` = "Selanjutnya",
-            previous = "Sebelumnya"
-          )
-        )
-      ),
-      rownames = FALSE,
-      class = 'cell-border stripe hover'
-    ) %>%
-      DT::formatRound(columns = c(3:6), digits = 1) %>%
-      DT::formatStyle(
-        columns = c(3:6),
-        backgroundColor = 'rgba(230, 57, 70, 0.05)',
-        fontWeight = 'bold'
-      )
-  })
-  
-  # ARIMA forecast
-  output$grafik_prediksi_arima <- renderPlotly({
-    req(input$perbarui_prediksi)
-    
-    if(nrow(monthly_temp_trend) <= 12) {
-      return(plotly_empty() %>% layout(title = "Data bulanan tidak cukup untuk prediksi ARIMA"))
-    }
-    
-    forecast_months <- as.numeric(input$bulan_prediksi)
-    
-    # Create time series
-    start_year <- min(monthly_temp_trend$year, na.rm = TRUE)
-    start_month <- min(monthly_temp_trend$month[monthly_temp_trend$year == start_year], na.rm = TRUE)
-    
-    ts_data <- ts(monthly_temp_trend$temperature,
-                  start = c(start_year, start_month),
-                  frequency = 12)
-    
-    # Fit ARIMA and forecast
-    arima_model <- auto.arima(ts_data)
-    forecast_result <- forecast(arima_model, h = forecast_months, level = 95)
-    
-    # Create dates
-    historical_dates <- monthly_temp_trend$year_month
-    last_date <- max(historical_dates, na.rm = TRUE)
-    forecast_dates <- seq(from = last_date %m+% months(1), by = "1 month", length.out = forecast_months)
-    
-    # Plot
-    plot_ly() %>%
-      add_trace(
-        x = historical_dates,
-        y = as.numeric(ts_data),
-        type = 'scatter',
-        mode = 'lines',
-        line = list(color = '#e63946', width = 2),
-        name = 'Data Historis',
-        hovertemplate = 'Tanggal: %{x}<br>Suhu: %{y:.2f}°C<extra></extra>'
-      ) %>%
-      add_trace(
-        x = forecast_dates,
-        y = as.numeric(forecast_result$mean),
-        type = 'scatter',
-        mode = 'lines',
-        line = list(color = '#2a9d8f', width = 3),
-        name = 'Prediksi ARIMA',
-        hovertemplate = 'Tanggal: %{x}<br>Prediksi: %{y:.2f}°C<extra></extra>'
-      ) %>%
-      layout(
-        title = paste("Prediksi Suhu Bulanan ARIMA -", forecast_months, "Bulan"),
-        xaxis = list(title = "Tanggal"),
-        yaxis = list(title = "Suhu (°C)"),
-        plot_bgcolor = 'rgba(0,0,0,0)',
-        paper_bgcolor = 'rgba(0,0,0,0)'
-      ) %>%
-      config(displayModeBar = FALSE)
-  })
-  
-  # Model performance
-  output$performa_model <- renderUI({
-    req(input$perbarui_prediksi)
-    
-    if(nrow(monthly_temp_trend) <= 12) {
-      return(p("Data bulanan tidak cukup untuk perhitungan performa model"))
-    }
-    
-    start_year <- min(monthly_temp_trend$year, na.rm = TRUE)
-    start_month <- min(monthly_temp_trend$month[monthly_temp_trend$year == start_year], na.rm = TRUE)
-    
-    ts_data <- ts(monthly_temp_trend$temperature, 
-                  start = c(start_year, start_month), 
-                  frequency = 12)
-    arima_model <- auto.arima(ts_data)
-    
-    residuals_data <- residuals(arima_model)
-    mae <- round(mean(abs(residuals_data), na.rm = TRUE), 4)
-    rmse <- round(sqrt(mean(residuals_data^2, na.rm = TRUE)), 4)
-    
-    tagList(
-      div(style = "margin-bottom: 15px;",
-          tags$strong("Tipe Model: "), 
-          paste0("ARIMA(", paste(arimaorder(arima_model), collapse = ","), ")")
-      ),
-      div(style = "margin-bottom: 15px;",
-          tags$strong("Frekuensi Data: "), "Bulanan"
-      ),
-      div(style = "margin-bottom: 15px;",
-          tags$strong("MAE: "), paste0(mae, "°C")
-      ),
-      div(style = "margin-bottom: 15px;",
-          tags$strong("RMSE: "), paste0(rmse, "°C")
-      ),
-      div(style = "margin-bottom: 15px;",
-          tags$strong("AIC: "), round(AIC(arima_model), 2)
-      )
-    )
-  })
-  
-  # Forecast summary
-  output$ringkasan_prediksi <- renderUI({
-    req(input$perbarui_prediksi)
-    
-    if(nrow(monthly_temp_trend) <= 12) {
-      return(p("Data bulanan tidak cukup untuk ringkasan prediksi"))
-    }
-    
-    forecast_months <- as.numeric(input$bulan_prediksi)
-    
-    start_year <- min(monthly_temp_trend$year, na.rm = TRUE)
-    start_month <- min(monthly_temp_trend$month[monthly_temp_trend$year == start_year], na.rm = TRUE)
-    
-    ts_data <- ts(monthly_temp_trend$temperature,
-                  start = c(start_year, start_month),
-                  frequency = 12)
-    
-    arima_model <- auto.arima(ts_data)
-    forecast_result <- forecast(arima_model, h = forecast_months, level = 95)
-    
-    final_forecast <- round(as.numeric(forecast_result$mean[forecast_months]), 2)
-    current_temp <- round(tail(monthly_temp_trend$temperature, 1), 2)
-    temp_change <- round(final_forecast - current_temp, 2)
-    
-    last_date <- max(monthly_temp_trend$year_month, na.rm = TRUE)
-    forecast_end_date <- last_date %m+% months(forecast_months)
-    
-    tagList(
-      div(style = "margin-bottom: 15px;",
-          tags$strong("Horizon Prediksi: "), paste(forecast_months, "bulan")
-      ),
-      div(style = "margin-bottom: 15px;",
-          tags$strong("Periode Prediksi: "), 
-          paste("Hingga", format(forecast_end_date, "%B %Y"))
-      ),
-      div(style = "margin-bottom: 15px;",
-          tags$strong("Suhu Saat Ini: "), paste0(current_temp, "°C")
-      ),
-      div(style = "margin-bottom: 15px;",
-          tags$strong("Suhu Proyeksi: "), paste0(final_forecast, "°C")
-      ),
-      div(style = "margin-bottom: 15px;",
-          tags$strong("Perubahan yang Diharapkan: "), 
-          paste0(ifelse(temp_change >= 0, "+", ""), temp_change, "°C")
-      ),
-      div(style = "margin-bottom: 15px;",
-          tags$strong("Laju Perubahan Bulanan: "), 
-          paste0(round(temp_change / forecast_months, 4), "°C/bulan")
-      )
-    )
-  })
-  
-  # Complete data table
   output$tabel_data_lengkap <- DT::renderDataTable({
     if(nrow(provinces_climate_data) == 0) {
       return(DT::datatable(data.frame(Message = "Data tidak tersedia")))
@@ -3133,7 +3049,7 @@ server <- function(input, output, session) {
 }
 
 # =============================================
-# RUN APPLICATION
+# JALANKAN APLIKASI
 # =============================================
 
 shinyApp(ui = ui, server = server)
