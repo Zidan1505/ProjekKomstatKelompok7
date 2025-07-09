@@ -1,6 +1,5 @@
 # =============================================
 # INDONESIA CLIMATE PULSE DASHBOARD - GLOBAL
-# Data Processing and Global Variables
 # =============================================
 
 # Load required libraries
@@ -23,10 +22,8 @@ library(shinyjs)
 # =============================================
 
 # Set working directory and load data
-# setwd("C:/Tugas Zidan/Sem 4/Komstat/Projek/deploy")
+setwd("C:/Tugas Zidan/Sem 4/Komstat/Projek/deploy")
 
-# Create sample data for demonstration
-# Replace this with your actual data loading
 temp_data <- data.frame(
   date = seq(as.Date("2020-01-01"), as.Date("2023-12-31"), by = "month"),
   Tavg = runif(48, 24, 32),
@@ -35,14 +32,11 @@ temp_data <- data.frame(
   province_id = sample(1:8, 48, replace = TRUE)
 )
 
-# Uncomment and modify this line to load your actual data
-# temp_data <- read_excel("data_suhu_lengkap.xlsx")
+temp_data <- read_excel("data_suhu_lengkap.xlsx")
 
-# Debug: Check data structure
 cat("Data columns:", names(temp_data), "\n")
 cat("Data rows:", nrow(temp_data), "\n")
 
-# Ensure date column exists and is properly formatted
 if("date" %in% names(temp_data)) {
   temp_data$date <- as.Date(temp_data$date)
 } else {
@@ -52,7 +46,6 @@ if("date" %in% names(temp_data)) {
 temp_data$year <- year(temp_data$date)
 temp_data$month <- month(temp_data$date)
 
-# Process climate data with error handling
 provinces_climate_data <- temp_data %>%
   group_by(province_name, province_id) %>%
   summarise(
@@ -79,7 +72,7 @@ provinces_climate_data <- temp_data %>%
     )
   )
 
-# Monthly temperature trends
+# Tempertaur Bulanan
 monthly_temp_trend <- temp_data %>%
   mutate(
     year_month = floor_date(date, "month"),
@@ -98,7 +91,7 @@ monthly_temp_trend <- temp_data %>%
     anomaly = round(temperature - baseline_temp, 2)
   )
 
-# National temperature trend
+# Temperatur Nasional
 national_temp_trend <- monthly_temp_trend %>%
   group_by(year) %>%
   summarise(
@@ -110,7 +103,6 @@ national_temp_trend <- monthly_temp_trend %>%
     anomaly = round(temperature - baseline_temp, 2)
   )
 
-# Monthly seasonal data
 monthly_data <- temp_data %>%
   group_by(month) %>%
   summarise(
@@ -129,7 +121,6 @@ monthly_data <- temp_data %>%
 geojson_path <- "indonesia-prov.geojson"
 indonesia_provinces <- NULL
 
-# Create fallback data for demonstration
 fallback_data <- data.frame(
   province_name = provinces_climate_data$province_name,
   current_temp = provinces_climate_data$current_temp,
@@ -142,7 +133,6 @@ fallback_data <- data.frame(
   stringsAsFactors = FALSE
 )
 
-# Fill missing coordinates with random values around Indonesia
 missing_coords <- is.na(fallback_data$lat) | is.na(fallback_data$lng)
 if(any(missing_coords)) {
   fallback_data$lat[missing_coords] <- runif(sum(missing_coords), -10, 5)
