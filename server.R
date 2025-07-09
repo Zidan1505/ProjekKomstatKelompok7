@@ -1,14 +1,11 @@
 # =============================================
 # INDONESIA CLIMATE PULSE DASHBOARD - SERVER
-# Server Logic and Reactive Functions
 # =============================================
 
 server <- function(input, output, session) {
   
-  # Track active tab
   active_tab <- reactiveVal("beranda")
   
-  # Navigation handlers
   observeEvent(input$nav_beranda, {
     active_tab("beranda")
     shinyjs::hide("tren_content")
@@ -79,7 +76,6 @@ server <- function(input, output, session) {
           "Rentang tanggal:", min(temp_data$date), "hingga", max(temp_data$date))
   })
   
-  # Stats outputs with error handling
   output$suhu_tertinggi <- renderText({
     if(nrow(provinces_climate_data) > 0 && "current_temp" %in% names(provinces_climate_data)) {
       max_temp <- max(provinces_climate_data$current_temp, na.rm = TRUE)
@@ -139,7 +135,7 @@ server <- function(input, output, session) {
     }
   })
   
-  # Charts
+  # Grafik
   output$grafik_tren_nasional <- renderPlotly({
     if(nrow(national_temp_trend) == 0) {
       return(plotly_empty() %>% layout(title = "Data tren tidak tersedia"))
@@ -240,7 +236,6 @@ server <- function(input, output, session) {
       config(displayModeBar = FALSE)
   })
   
-  # Detailed trends chart
   output$grafik_tren_detail <- renderPlotly({
     if(nrow(national_temp_trend) < 2) {
       return(plotly_empty() %>% layout(title = "Data tidak cukup untuk analisis tren"))
@@ -270,7 +265,7 @@ server <- function(input, output, session) {
       config(displayModeBar = FALSE)
   })
   
-  # Trend statistics
+  # Trend statistik
   output$statistik_tren <- renderUI({
     if(nrow(national_temp_trend) < 2) {
       return(p("Data tren tidak tersedia"))
@@ -303,7 +298,7 @@ server <- function(input, output, session) {
     )
   })
   
-  # Temperature extremes
+  # Temperatur ekstrim
   output$ekstrem_suhu <- renderUI({
     if(nrow(provinces_climate_data) == 0 || !"current_temp" %in% names(provinces_climate_data)) {
       return(p("Data ekstrem tidak tersedia"))
@@ -340,7 +335,7 @@ server <- function(input, output, session) {
     )
   })
   
-  # Climate map
+  # Peta Iklim
   output$peta_iklim <- renderLeaflet({
     if(exists("fallback_data") && nrow(fallback_data) > 0) {
       param <- input$parameter_peta
@@ -398,7 +393,6 @@ server <- function(input, output, session) {
     }
   })
   
-  # Update map when parameter changes
   observeEvent(input$perbarui_peta, {
     output$peta_iklim <- renderLeaflet({
       if(exists("fallback_data") && nrow(fallback_data) > 0) {
@@ -505,7 +499,6 @@ server <- function(input, output, session) {
     
     forecast_months <- as.numeric(input$bulan_prediksi)
     
-    # Create time series
     start_year <- min(monthly_temp_trend$year, na.rm = TRUE)
     start_month <- min(monthly_temp_trend$month[monthly_temp_trend$year == start_year], na.rm = TRUE)
     
@@ -513,11 +506,9 @@ server <- function(input, output, session) {
                   start = c(start_year, start_month),
                   frequency = 12)
     
-    # Fit ARIMA and forecast
     arima_model <- auto.arima(ts_data)
     forecast_result <- forecast(arima_model, h = forecast_months, level = 95)
     
-    # Create dates
     historical_dates <- monthly_temp_trend$year_month
     last_date <- max(historical_dates, na.rm = TRUE)
     forecast_dates <- seq(from = last_date %m+% months(1), by = "1 month", length.out = forecast_months)
@@ -552,7 +543,6 @@ server <- function(input, output, session) {
       config(displayModeBar = FALSE)
   })
   
-  # Model performance
   output$performa_model <- renderUI({
     req(input$perbarui_prediksi)
     
@@ -592,7 +582,6 @@ server <- function(input, output, session) {
     )
   })
   
-  # Forecast summary
   output$ringkasan_prediksi <- renderUI({
     req(input$perbarui_prediksi)
     
@@ -644,7 +633,6 @@ server <- function(input, output, session) {
     )
   })
   
-  # Complete data table
   output$tabel_data_lengkap <- DT::renderDataTable({
     if(nrow(provinces_climate_data) == 0) {
       return(DT::datatable(data.frame(Message = "Data tidak tersedia")))
