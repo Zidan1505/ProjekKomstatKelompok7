@@ -1415,7 +1415,7 @@ ui <- fluidPage(
                           div(style = "display: flex; justify-content: center;",
                               tags$iframe(
                                 width = "560", height = "315",
-                                src = "https://www.youtube.com/embed/YOUR_VIDEO_ID_HERE",
+                                src = "https://www.youtube.com/embed/I9VVNqa_gpQ?si=XNyMOgVPP2S6kiHi",
                                 frameborder = "0",
                                 allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture",
                                 allowfullscreen = NA
